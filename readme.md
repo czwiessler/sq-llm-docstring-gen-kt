@@ -19,7 +19,7 @@ Dieses Repository stellt optionales Begleitmaterial für das Projekt zur Verfüg
 - `if_statements`: Anzahl der If-Statements
 - `variables`: Summe der zugewiesenen Variablen
 - `files_read`: Summe der Stellen, an denen eine externe Date eingelesen wird (berücksichtigt Funktionsaufrufe mit dem Muster `.open()` und `.read()`
-- `functions_with_docstring`: Funktionen, die einen Docstring enthalten
+- `functions_with_docstring`: Anzahl Funktionen, die einen Docstring enthalten
 - `single_line_comments`: Summe der Zeilenkommentare
 - `average_line_length`: Durchschnittliche Zeilenlänge
 - `maximum_line_length`: Maximale Zeilenlänge
