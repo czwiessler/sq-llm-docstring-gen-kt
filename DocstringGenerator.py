@@ -8,7 +8,7 @@ api_key = os.environ.get("OPENAI_API_KEY", "keyhere")
 client = OpenAI(api_key=api_key)
 
 # Datei lesen
-file_path = "example.py"
+file_path = "examples/example.py"
 
 with open(file_path, "r", encoding="utf-8") as file:
     python_code = file.read()
