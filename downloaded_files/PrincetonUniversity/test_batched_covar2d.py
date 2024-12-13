@@ -1,0 +1,266 @@
+from unittest import TestCase
+
+import numpy as np
+
+from aspire.basis import Coef, FFBBasis2D
+from aspire.covariance import BatchedRotCov2D, RotCov2D
+from aspire.noise import WhiteNoiseAdder
+from aspire.operators import RadialCTFFilter
+from aspire.source.simulation import Simulation
+from aspire.utils import utest_tolerance
+
+
+class BatchedRotCov2DTestCase(TestCase):
+    """
+    Tests batched cov2d without providing any CTF filters.
+    """
+
+    filters = None
+    ctf_idx = None
+    ctf_basis = None
+
+    def setUp(self):
+        n = 32
+        L = 8
+        self.dtype = np.float32
+        self.noise_var = 0.1848
+
+        # Initial noise filter to generate noise images.
+        # Noise variance is set to a value far away that is used to calculate
+        # covariance matrix and CWF coefficients in order to check the function
+        # for rebuilding positive definite covariance matrix.
+        noise_adder = WhiteNoiseAdder(var=self.noise_var * 0.001)
+
+        self.src = Simulation(
+            L,
+            n,
+            unique_filters=self.filters,
+            dtype=self.dtype,
+            noise_adder=noise_adder,
+        )
+        self.basis = FFBBasis2D((L, L), dtype=self.dtype)
+        self.coef = self.basis.evaluate_t(self.src.images[:])
+
+        self.cov2d = RotCov2D(self.basis)
+        self.bcov2d = BatchedRotCov2D(self.src, self.basis, batch_size=7)
+
+    def tearDown(self):
+        pass
+
+    def blk_diag_allclose(self, blk_diag_a, blk_diag_b, atol=None):
+        if atol is None:
+            atol = utest_tolerance(self.dtype)
+
+        close = True
+        for blk_a, blk_b in zip(blk_diag_a, blk_diag_b):
+            close = close and np.allclose(blk_a, blk_b, atol=atol)
+        return close
+
+    def testMeanCovar(self):
+        # Test basic functionality against RotCov2D.
+
+        mean_cov2d = self.cov2d.get_mean(
+            self.coef, ctf_basis=self.ctf_basis, ctf_idx=self.ctf_idx
+        )
+        covar_cov2d = self.cov2d.get_covar(
+            self.coef,
+            mean_coef=mean_cov2d,
+            ctf_basis=self.ctf_basis,
+            ctf_idx=self.ctf_idx,
+            noise_var=self.noise_var,
+        )
+
+        mean_bcov2d = self.bcov2d.get_mean()
+        covar_bcov2d = self.bcov2d.get_covar(noise_var=self.noise_var)
+
+        self.assertTrue(
+            np.allclose(mean_cov2d, mean_bcov2d, atol=utest_tolerance(self.dtype))
+        )
+
+        self.assertTrue(
+            self.blk_diag_allclose(
+                covar_cov2d, covar_bcov2d, atol=utest_tolerance(self.dtype)
+            )
+        )
+
+    def testZeroMean(self):
+        # Make sure it works with zero mean (pure second moment).
+        zero_coef = Coef(self.basis, np.zeros((self.basis.count,), dtype=self.dtype))
+
+        covar_cov2d = self.cov2d.get_covar(
+            self.coef,
+            mean_coef=zero_coef,
+            ctf_basis=self.ctf_basis,
+            ctf_idx=self.ctf_idx,
+        )
+
+        covar_bcov2d = self.bcov2d.get_covar(mean_coef=zero_coef)
+
+        self.assertTrue(
+            self.blk_diag_allclose(
+                covar_cov2d, covar_bcov2d, atol=utest_tolerance(self.dtype)
+            )
+        )
+
+    def testAutoMean(self):
+        # Make sure it automatically calls get_mean if needed.
+        covar_cov2d = self.cov2d.get_covar(
+            self.coef, ctf_basis=self.ctf_basis, ctf_idx=self.ctf_idx
+        )
+
+        covar_bcov2d = self.bcov2d.get_covar()
+
+        self.assertTrue(
+            self.blk_diag_allclose(
+                covar_cov2d, covar_bcov2d, atol=utest_tolerance(self.dtype)
+            )
+        )
+
+    def testShrink(self):
+        # Make sure it properly shrinks the right-hand side if specified.
+        covar_est_opt = {
+            "shrinker": "frobenius_norm",
+            "verbose": 0,
+            "max_iter": 250,
+            "iter_callback": [],
+            "store_iterates": False,
+            "rel_tolerance": 1e-12,
+            "precision": self.dtype,
+        }
+
+        covar_cov2d = self.cov2d.get_covar(
+            self.coef,
+            ctf_basis=self.ctf_basis,
+            ctf_idx=self.ctf_idx,
+            covar_est_opt=covar_est_opt,
+        )
+
+        covar_bcov2d = self.bcov2d.get_covar(covar_est_opt=covar_est_opt)
+
+        self.assertTrue(self.blk_diag_allclose(covar_cov2d, covar_bcov2d))
+
+    def testAutoBasis(self):
+        # Make sure basis is automatically created if not specified.
+        nbcov2d = BatchedRotCov2D(self.src)
+
+        covar_bcov2d = self.bcov2d.get_covar()
+        covar_nbcov2d = nbcov2d.get_covar()
+
+        self.assertTrue(
+            self.blk_diag_allclose(
+                covar_bcov2d, covar_nbcov2d, atol=utest_tolerance(self.dtype)
+            )
+        )
+
+    def testCWFCoeff(self):
+        # Calculate CWF coefficients using Cov2D base class
+        mean_cov2d = self.cov2d.get_mean(
+            self.coef, ctf_basis=self.ctf_basis, ctf_idx=self.ctf_idx
+        )
+        covar_cov2d = self.cov2d.get_covar(
+            self.coef,
+            ctf_basis=self.ctf_basis,
+            ctf_idx=self.ctf_idx,
+            noise_var=self.noise_var,
+            make_psd=True,
+        )
+
+        coef_cov2d = self.cov2d.get_cwf_coefs(
+            self.coef,
+            self.ctf_basis,
+            self.ctf_idx,
+            mean_coef=mean_cov2d,
+            covar_coef=covar_cov2d,
+            noise_var=self.noise_var,
+        )
+
+        # Calculate CWF coefficients using Batched Cov2D class
+        mean_bcov2d = self.bcov2d.get_mean()
+        covar_bcov2d = self.bcov2d.get_covar(noise_var=self.noise_var, make_psd=True)
+
+        coef_bcov2d = self.bcov2d.get_cwf_coefs(
+            self.coef,
+            self.ctf_basis,
+            self.ctf_idx,
+            mean_bcov2d,
+            covar_bcov2d,
+            noise_var=self.noise_var,
+        )
+        self.assertTrue(
+            self.blk_diag_allclose(
+                coef_cov2d,
+                coef_bcov2d,
+                atol=utest_tolerance(self.dtype),
+            )
+        )
+
+    def testCWFCoeffCleanCTF(self):
+        """
+        Test case of clean images (coef_clean and noise_var=0)
+        while using a non Identity CTF.
+
+        This case may come up when a developer switches between
+        clean and dirty images.
+        """
+
+        # Calculate CWF coefficients using Cov2D base class
+        mean_cov2d = self.cov2d.get_mean(
+            self.coef, ctf_basis=self.ctf_basis, ctf_idx=self.ctf_idx
+        )
+        covar_cov2d = self.cov2d.get_covar(
+            self.coef,
+            ctf_basis=self.ctf_basis,
+            ctf_idx=self.ctf_idx,
+            noise_var=self.noise_var,
+            make_psd=True,
+        )
+
+        coef_cov2d = self.cov2d.get_cwf_coefs(
+            self.coef,
+            self.ctf_basis,
+            self.ctf_idx,
+            mean_coef=mean_cov2d,
+            covar_coef=covar_cov2d,
+            noise_var=0,
+        )
+
+        # Calculate CWF coefficients using Batched Cov2D class
+        mean_bcov2d = self.bcov2d.get_mean()
+        covar_bcov2d = self.bcov2d.get_covar(noise_var=self.noise_var, make_psd=True)
+
+        coef_bcov2d = self.bcov2d.get_cwf_coefs(
+            self.coef,
+            self.ctf_basis,
+            self.ctf_idx,
+            mean_bcov2d,
+            covar_bcov2d,
+            noise_var=0,
+        )
+        self.assertTrue(
+            self.blk_diag_allclose(
+                coef_cov2d,
+                coef_bcov2d,
+                atol=utest_tolerance(self.dtype),
+            )
+        )
+
+
+class BatchedRotCov2DTestCaseCTF(BatchedRotCov2DTestCase):
+    """
+    Tests batched cov2d with CTF information.
+    """
+
+    @property
+    def filters(self):
+        return [
+            RadialCTFFilter(5, 200, defocus=d, Cs=2.0, alpha=0.1)
+            for d in np.linspace(1.5e4, 2.5e4, 7)
+        ]
+
+    @property
+    def ctf_idx(self):
+        return self.src.filter_indices
+
+    @property
+    def ctf_basis(self):
+        return [self.basis.filter_to_basis_mat(f) for f in self.src.unique_filters]
