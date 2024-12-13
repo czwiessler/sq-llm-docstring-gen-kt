@@ -45,20 +45,21 @@ def filter_files_based_on_conditions(metrics_file:str, conditions:dict[str, Call
 
     return filtered_df
 
+if __name__ == "__main__":
 
-# Define conditions for filtering
-conditions = {
-    "lines": lambda x: 30 <= x <= 300, # between 30 and 300 lines
-    "functions": lambda x: x >= 3, # at least three functions
-    "functions_with_docstring": lambda x: x >= 3, # at least three functions with a docstring
-    # add more conditions here if necessary ...
-}
-# Path to the .xlsx file containing the metrics
-metrics_file = "./script_metrics.xlsx"
-# Path to the .xlsx file in which to place the names of the filtered scripts
-output_file = "./filtered_files.xlsx"
+    # Define conditions for filtering
+    conditions = {
+        "lines": lambda x: 30 <= x <= 300, # between 30 and 300 lines
+        "functions": lambda x: x >= 3, # at least three functions
+        "functions_with_docstring": lambda x: x >= 3, # at least three functions with a docstring
+        # add more conditions here if necessary ...
+    }
+    # Path to the .xlsx file containing the metrics
+    metrics_file = "./script_metrics.xlsx"
+    # Path to the .xlsx file in which to place the names of the filtered scripts
+    output_file = "./filtered_files.xlsx"
 
-# Get the filtered files based on conditions
-filtered_df = filter_files_based_on_conditions(metrics_file, conditions, output_file)
+    # Get the filtered files based on conditions
+    filtered_df = filter_files_based_on_conditions(metrics_file, conditions, output_file)
 
-print(f"Done.")
+    print(f"Done.")
