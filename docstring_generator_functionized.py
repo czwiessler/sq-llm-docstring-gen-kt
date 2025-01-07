@@ -3,16 +3,13 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 
-#based on DocstringGenerator.py, this script shall include the same functionality, but in a functionized manner
-
 def annotate_script(model: str, python_code: str) -> str:
     """
     Annotates a Python script with inline docstrings using the OpenAI API.
 
     Args:
-        api_key (str): OpenAI API key for authentication.
         model (str): OpenAI model to use for generating docstrings.
-        output_path (str): Path to save the annotated script.
+        python_code (str): Python script to annotate with inline docstrings.
 
     Returns:
         str: The annotated Python script with inline docstrings.
@@ -42,5 +39,11 @@ def annotate_script(model: str, python_code: str) -> str:
 
     # Extract generated content
     annotated_code = chat_completion.choices[0].message.content
+
+    #delete first and last line of the generated code
+    annotated_code = annotated_code.split("\n")
+    annotated_code = annotated_code[1:-1]
+    annotated_code = "\n".join(annotated_code)
+
 
     return annotated_code

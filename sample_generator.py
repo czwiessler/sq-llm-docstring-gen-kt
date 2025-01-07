@@ -31,8 +31,6 @@ def annotate_random_scripts(
         max_loc (int): Maximum number of lines of code in the script.
     """
 
-    print(os.getcwd())
-
     # Define conditions for filtering scripts
     conditions = {
         "lines": lambda x: min_loc <= x <= max_loc,
@@ -71,17 +69,3 @@ def annotate_random_scripts(
             output_file.write(annotated_content)
 
         print(f"Annotated script saved to {output_path}")
-
-
-if __name__ == "__main__":
-    # Example usage
-    annotate_random_scripts(
-        number_of_scripts=10,
-        save_directory="./annotated_scripts",
-        min_loc=30,
-        max_loc=300,
-        min_functions=3,
-        max_functions=10,
-        min_functions_with_docstring=2,
-        max_functions_with_docstring=5,
-    )
