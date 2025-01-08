@@ -8,6 +8,8 @@ def annotate_random_scripts(
         save_directory: str,
         min_functions: int,
         max_functions: int,
+        min_classes: int,
+        max_classes: int,
         min_functions_with_docstring: int,
         max_functions_with_docstring: int,
         model: str = "gpt-3.5-turbo",
@@ -23,6 +25,8 @@ def annotate_random_scripts(
         save_directory (str): Directory to save the annotated scripts.
         min_functions (int): Minimum number of functions in the script.
         max_functions (int): Maximum number of functions in the script.
+        min_classes (int): Minimum number of classes in the script.
+        max_classes (int): Maximum number of classes in the script.
         min_functions_with_docstring (int): Minimum number of functions with a docstring in the script.
         max_functions_with_docstring (int): Maximum number of functions with a docstring in the script.
         model (str): OpenAI model to use for generating docstrings.
@@ -35,6 +39,7 @@ def annotate_random_scripts(
     conditions = {
         "lines": lambda x: min_loc <= x <= max_loc,
         "functions": lambda x: min_functions <= x <= max_functions,
+        "classes": lambda x: min_classes <= x <= max_classes,
         "functions_with_docstring": lambda x: min_functions_with_docstring <= x <= max_functions_with_docstring,
     }
 

@@ -51,6 +51,7 @@ if __name__ == "__main__":
     conditions = {
         "lines": lambda x: 30 <= x <= 300, # between 30 and 300 lines
         "functions": lambda x: x >= 3, # at least three functions
+        "classes": lambda x: x >= 5, # at least 5 classes
         "functions_with_docstring": lambda x: x >= 3, # at least three functions with a docstring
         # add more conditions here if necessary ...
     }
