@@ -1,6 +1,7 @@
 import os
 from filter_sample_scripts import filter_files_based_on_conditions
 from docstring_generator_functionized import annotate_script
+from docstring_generator_functionized import annotate_by_mapping
 
 
 
@@ -65,7 +66,8 @@ def annotate_random_scripts(
         with open(script_path, "r", encoding="utf-8") as file:
             script_content = file.read()
 
-        annotated_content = annotate_script(model, script_content)
+        #annotated_content = annotate_script(model, script_content)
+        annotated_content = annotate_by_mapping(model, script_content)
 
         # Save the annotated script
         script_name = os.path.basename(script_path)
