@@ -40,9 +40,9 @@ def annotate_script(model: str, python_code: str) -> str:
     # Extract generated content
     annotated_code = chat_completion.choices[0].message.content
 
-    #delete first and last line of the generated code
+    #delete code tags
     annotated_code = annotated_code.split("\n")
-    annotated_code = annotated_code[1:-1]
+    annotated_code = [line for line in annotated_code if not line.strip().startswith("```")]
     annotated_code = "\n".join(annotated_code)
 
 
