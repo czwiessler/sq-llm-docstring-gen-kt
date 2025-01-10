@@ -66,8 +66,16 @@ def annotate_random_scripts(
         with open(script_path, "r", encoding="utf-8") as file:
             script_content = file.read()
 
+        #attach "_original" to the script name and save to save_directory
+        script_name = os.path.basename(script_path)
+        script_name = script_name.replace(".py", "_original.py")
+        output_path = os.path.join(save_directory, script_name)
+        with open(output_path, "w", encoding="utf-8") as output_file:
+            output_file.write(script_content)
+
+
         #annotated_content = annotate_script(model, script_content)
-        annotated_content = annotate_by_mapping(model, script_content)
+        annotated_content = annotate_by_mapping(model, script_content, save_directory, os.path.basename(script_path))
 
         # Save the annotated script
         script_name = os.path.basename(script_path)
