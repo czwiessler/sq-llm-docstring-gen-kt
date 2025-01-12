@@ -67,23 +67,34 @@ def annotate_by_mapping(model: str, original_python_code: str, target_directory:
             {
                 "role": "user",
                 "content": f"Please generate appropriate inline docstrings for both functions and classes in the following Python code, ensuring the file remains executable."
-                           f"Only return the docstrings and the classes, functions, or asynchronous functions to which they belong:"
+                           f"Only return the class header, function header, or asynchronous function header and the docstring."
+                           f"use triple quotes like these \"\"\" as a docstring wrapper"
                            f"\n\n{original_python_code}",
             },
         ],
         model=model,
     )
 
-    answer = chat_completion.choices[0].message.content
+    generated_annotations = chat_completion.choices[0].message.content
 
     #delete code tags
-    answer = answer.split("\n")
-    answer = [line for line in answer if not line.strip().startswith("```")]
-    answer = "\n".join(answer)
+    generated_annotations = generated_annotations.split("\n")
+    generated_annotations = [line for line in generated_annotations if not line.strip().startswith("```")]
+    generated_annotations = "\n".join(generated_annotations)
+
+    #for easier debugging
+    # save the generated docstrings (answer) as a file to target_directory. Before saving, attach "_generated_docstrings" to the filename
+    script_name = file_name
+    script_name = script_name.replace(".py", "_generated_docstrings.py")
+    output_path = os.path.join(target_directory, script_name)
+    with open(output_path, "w", encoding="utf-8") as output_file:
+        output_file.write(generated_annotations)
+
 
     # remove original docstrings (if existing) before inserting the "new" ones
     cleaned_python_code = remove_docstrings(original_python_code)
 
+    # for easier debugging
     # save the cleaned code as a file to target_directory. Before saving, attach "_cleaned" to the filename
     script_name = file_name
     script_name = script_name.replace(".py", "_cleaned.py")
@@ -92,22 +103,12 @@ def annotate_by_mapping(model: str, original_python_code: str, target_directory:
         output_file.write(cleaned_python_code)
 
 
-    annotated_code = map_annotations(cleaned_python_code, answer)
+    annotated_code = map_annotations(cleaned_python_code, generated_annotations)
 
     return annotated_code
 
 
 def map_annotations(input_code: str, annotations: str) -> str:
-    """
-    Maps annotations to their corresponding classes or functions in the input Python code.
-
-    Args:
-        input_code (str): The Python code to annotate.
-        annotations (str): The annotations to insert into the Python code.
-
-    Returns:
-        str: Annotated Python code.
-    """
 
     # Parse the annotations into a dictionary
     def parse_annotations(annotations: str) -> dict:
@@ -115,18 +116,27 @@ def map_annotations(input_code: str, annotations: str) -> str:
         current_key = None
         current_value = []
 
-        for line in annotations.splitlines():
-            line = line.rstrip()
-            if line.startswith("class ") or line.startswith("def ") or line.startswith("async def "):
-                if current_key:
-                    annotation_dict[current_key] = "\n".join(current_value).strip()
-                current_key = re.match(r'(class|def|async def)\s+(\w+)', line).group(2)
+        for annotation_line in annotations.splitlines():
+            annotation_line = annotation_line.rstrip() #remove trailing whitespaces
+            #check if the line starts with arbitrary number of whitespaces followed by "class ", "def ", or "async def "
+            if re.match(r'^\s*(class|def|async def)\b', annotation_line):
+            #if annotation_line.startswith("class ") or annotation_line.startswith("def ") or annotation_line.startswith("async def "):
+                if current_key: #if there is a current key, save the current value to the dict
+                    annotation_dict[current_key] = "\n".join(current_value).rstrip() #join the lines of the current value and remove (ONLY!) trailing whitespaces
+                current_key = re.match(r'^\s*(class|def|async def)\s+(\w+)', annotation_line).group(2) #group(2) returns the second group of the match, being the name of the class or function
                 current_value = []
             elif current_key is not None:
-                current_value.append(line)
+                current_value.append(annotation_line)
 
         if current_key:
             annotation_dict[current_key] = "\n".join(current_value).strip()
+
+        #save the dict in an indented and readable form that preserves brackets of the dict structure to examples/dicts
+        with open("examples/dicts/annotation_dict.txt", "w", encoding="utf-8") as file:
+            file.write(str(annotation_dict))
+
+        import pprint
+        pprint.pp(annotation_dict)
 
         return annotation_dict
 
@@ -135,15 +145,15 @@ def map_annotations(input_code: str, annotations: str) -> str:
     # Insert annotations into the code
     def insert_annotations(input_code: str, annotation_dict: dict) -> str:
         annotated_code = []
-        lines = input_code.splitlines()
+        code_lines = input_code.splitlines()
 
-        for line in lines:
-            annotated_code.append(line)
-            match = re.match(r'(class|def|async def)\s+(\w+)', line)
+        for code_line in code_lines:
+            annotated_code.append(code_line)
+            match = re.match(r'(class|def|async def)\s+(\w+)', code_line)
             if match:
-                name = match.group(2)
-                if name in annotation_dict:
-                    annotated_code.append(annotation_dict[name])
+                class_or_func_name = match.group(2)
+                if class_or_func_name in annotation_dict:
+                    annotated_code.append(annotation_dict[class_or_func_name])
 
         return "\n".join(annotated_code)
 
@@ -151,15 +161,6 @@ def map_annotations(input_code: str, annotations: str) -> str:
 
 
 def remove_docstrings(code: str) -> str:
-    """
-    Removes all docstrings from the given Python code string, except for module-level docstrings.
-
-    Args:
-        code (str): Python code as a string.
-
-    Returns:
-        str: Python code with non-module docstrings removed.
-    """
     # Regular expression to match module-level docstrings
     module_docstring_pattern = r'\A\s*("""|\'\'\')((?:.|\n)*?)\1'
 
