@@ -36,6 +36,10 @@ def annotate_random_scripts(
         max_loc (int): Maximum number of lines of code in the script.
     """
 
+    #create directory if it does not exist
+    if not os.path.exists(save_directory):
+        os.makedirs(save_directory)
+
     # Define conditions for filtering scripts
     conditions = {
         "lines": lambda x: min_loc <= x <= max_loc,
@@ -77,10 +81,5 @@ def annotate_random_scripts(
         #annotated_content = annotate_script(model, script_content)
         annotated_content = annotate_by_mapping(model, script_content, save_directory, os.path.basename(script_path))
 
-        # Save the annotated script
-        script_name = os.path.basename(script_path)
-        output_path = os.path.join(save_directory, script_name)
-        with open(output_path, "w", encoding="utf-8") as output_file:
-            output_file.write(annotated_content)
 
         print(f"Annotated script saved to {output_path}")

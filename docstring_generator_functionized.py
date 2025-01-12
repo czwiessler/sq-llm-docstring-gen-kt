@@ -103,15 +103,20 @@ def annotate_by_mapping(model: str, original_python_code: str, target_directory:
         output_file.write(cleaned_python_code)
 
 
-    annotated_code = map_annotations(cleaned_python_code, generated_annotations)
+    annotated_code = map_annotations(cleaned_python_code, generated_annotations, target_directory, file_name)
+
+    #script_name = os.path.basename(script_path)
+    output_path = os.path.join(target_directory, file_name)
+    with open(output_path, "w", encoding="utf-8") as output_file:
+        output_file.write(annotated_code)
 
     return annotated_code
 
 
-def map_annotations(input_code: str, annotations: str) -> str:
+def map_annotations(input_code: str, annotations: str, target_directory: str, file_name: str) -> str:
 
     # Parse the annotations into a dictionary
-    def parse_annotations(annotations: str) -> dict:
+    def parse_annotations(annotations: str, target_directory: str, file_name: str) -> dict:
         annotation_dict = {}
         current_key = None
         current_value = []
@@ -120,7 +125,7 @@ def map_annotations(input_code: str, annotations: str) -> str:
             annotation_line = annotation_line.rstrip() #remove trailing whitespaces
             #check if the line starts with arbitrary number of whitespaces followed by "class ", "def ", or "async def "
             if re.match(r'^\s*(class|def|async def)\b', annotation_line):
-            #if annotation_line.startswith("class ") or annotation_line.startswith("def ") or annotation_line.startswith("async def "):
+                #if annotation_line.startswith("class ") or annotation_line.startswith("def ") or annotation_line.startswith("async def "):
                 if current_key: #if there is a current key, save the current value to the dict
                     annotation_dict[current_key] = "\n".join(current_value).rstrip() #join the lines of the current value and remove (ONLY!) trailing whitespaces
                 current_key = re.match(r'^\s*(class|def|async def)\s+(\w+)', annotation_line).group(2) #group(2) returns the second group of the match, being the name of the class or function
@@ -129,18 +134,21 @@ def map_annotations(input_code: str, annotations: str) -> str:
                 current_value.append(annotation_line)
 
         if current_key:
-            annotation_dict[current_key] = "\n".join(current_value).strip()
+            pass
+        annotation_dict[current_key] = "\n".join(current_value).rstrip()
 
-        #save the dict in an indented and readable form that preserves brackets of the dict structure to examples/dicts
-        with open("examples/dicts/annotation_dict.txt", "w", encoding="utf-8") as file:
-            file.write(str(annotation_dict))
-
-        import pprint
-        pprint.pp(annotation_dict)
+        #for easier debugging
+        #save the dict as a JSON file named after the file_name extended by "_JSON" to target_directory
+        import json
+        script_name = file_name
+        script_name = script_name.replace(".py", "_JSON.json")
+        output_path = os.path.join(target_directory, script_name)
+        with open(output_path, "w") as f:
+            json.dump(annotation_dict, f, indent=4)
 
         return annotation_dict
 
-    annotation_dict = parse_annotations(annotations)
+    annotation_dict = parse_annotations(annotations, target_directory, file_name)
 
     # Insert annotations into the code
     def insert_annotations(input_code: str, annotation_dict: dict) -> str:
@@ -149,7 +157,7 @@ def map_annotations(input_code: str, annotations: str) -> str:
 
         for code_line in code_lines:
             annotated_code.append(code_line)
-            match = re.match(r'(class|def|async def)\s+(\w+)', code_line)
+            match = re.match(r'^\s*(class|def|async def)\s+(\w+)', code_line)
             if match:
                 class_or_func_name = match.group(2)
                 if class_or_func_name in annotation_dict:
@@ -187,7 +195,7 @@ if __name__ == "__main__":
 #   with open("downloaded_files/wesselb/readme_example8_gp-rnn.py", "r", encoding="utf-8") as file:
 #   with open("downloaded_files/ChenRocks/training.py", "r", encoding="utf-8") as file:
 #   with open("downloaded_files/streamlit/st_magic.py", "r", encoding="utf-8") as file:
-    with open("downloaded_files/IDSIA/stdout_capturing.py", "r", encoding="utf-8") as file:
+    with open("downloaded_files/NRCan/boundary_loss.py", "r", encoding="utf-8") as file:
         python_code = file.read()
 
-    print(annotate_by_mapping(model, python_code))
+    annotate_by_mapping(model, python_code, "examples/run_J", "boundary_loss.py")
