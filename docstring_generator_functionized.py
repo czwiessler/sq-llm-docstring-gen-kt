@@ -66,8 +66,8 @@ def annotate_by_mapping(model: str, original_python_code: str, target_directory:
             },
             {
                 "role": "user",
-                "content": f"Please generate appropriate inline docstrings for both functions and classes in the following Python code, ensuring the file remains executable."
-                           f"Only return the class header, function header, or asynchronous function header and the docstring."
+                "content": f"Please generate appropriate inline docstrings for both functions and classes in the following Python code."
+                           f"Only return the class header, function header, or asynchronous function header and the docstring and retain indentation and basic structure."
                            f"use triple quotes like these \"\"\" as a docstring wrapper"
                            f"\n\n{original_python_code}",
             },
@@ -114,7 +114,7 @@ def annotate_by_mapping(model: str, original_python_code: str, target_directory:
 
 
 def map_annotations(input_code: str, annotations: str, target_directory: str, file_name: str) -> str:
-
+    regex = r'(^\s*)(class|def|async def)(\s+)(\w+)(.*)'
     # Parse the annotations into a dictionary
     def parse_annotations(annotations: str, target_directory: str, file_name: str) -> dict:
         annotation_dict = {}
@@ -124,11 +124,11 @@ def map_annotations(input_code: str, annotations: str, target_directory: str, fi
         for annotation_line in annotations.splitlines():
             annotation_line = annotation_line.rstrip() #remove trailing whitespaces
             #check if the line starts with arbitrary number of whitespaces followed by "class ", "def ", or "async def "
-            if re.match(r'^\s*(class|def|async def)\b', annotation_line):
+            if re.match(regex, annotation_line):
                 #if annotation_line.startswith("class ") or annotation_line.startswith("def ") or annotation_line.startswith("async def "):
                 if current_key: #if there is a current key, save the current value to the dict
                     annotation_dict[current_key] = "\n".join(current_value).rstrip() #join the lines of the current value and remove (ONLY!) trailing whitespaces
-                current_key = re.match(r'^\s*(class|def|async def)\s+(\w+)', annotation_line).group(2) #group(2) returns the second group of the match, being the name of the class or function
+                current_key = re.match(regex, annotation_line).group(0) #group(2) returns the second group of the match, being the name of the class or function
                 current_value = []
             elif current_key is not None:
                 current_value.append(annotation_line)
@@ -157,11 +157,11 @@ def map_annotations(input_code: str, annotations: str, target_directory: str, fi
 
         for code_line in code_lines:
             annotated_code.append(code_line)
-            match = re.match(r'^\s*(class|def|async def)\s+(\w+)', code_line)
+            match = re.match(regex, code_line)
             if match:
-                class_or_func_name = match.group(2)
-                if class_or_func_name in annotation_dict:
-                    annotated_code.append(annotation_dict[class_or_func_name])
+                whole_first_header_line = match.group(0)
+                if whole_first_header_line in annotation_dict:
+                    annotated_code.append(annotation_dict[whole_first_header_line])
 
         return "\n".join(annotated_code)
 
@@ -195,7 +195,7 @@ if __name__ == "__main__":
 #   with open("downloaded_files/wesselb/readme_example8_gp-rnn.py", "r", encoding="utf-8") as file:
 #   with open("downloaded_files/ChenRocks/training.py", "r", encoding="utf-8") as file:
 #   with open("downloaded_files/streamlit/st_magic.py", "r", encoding="utf-8") as file:
-    with open("downloaded_files/NRCan/boundary_loss.py", "r", encoding="utf-8") as file:
+    with open("downloaded_files/yongxuUSTC/tmp01f.py", "r", encoding="utf-8") as file:
         python_code = file.read()
 
-    annotate_by_mapping(model, python_code, "examples/run_J", "boundary_loss.py")
+    annotate_by_mapping(model, python_code, "examples/run_J", "tmp01f.py")
