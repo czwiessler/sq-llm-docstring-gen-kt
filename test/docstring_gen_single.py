@@ -40,6 +40,7 @@ def group_class_methods(definitions):
 def extract_code_blocks(lines, definitions):
     class_groups = group_class_methods(definitions)
     blocks = {}
+    # TODO: Add functionality to include headers of same class in the same block
 
     for i, (idx, header, indent) in enumerate(definitions):
         start_idx = idx
