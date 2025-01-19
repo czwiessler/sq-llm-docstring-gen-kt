@@ -1,55 +1,57 @@
-from networks import network, resnet18, alexnet, vgg16, googlenet
-from utils import random_read_batch
+from networks import Generator, Discriminator
+from ops import Hinge_Loss, MSE
 import tensorflow as tf
-import scipy.io as sio
+from utils import read_crop_data
 import numpy as np
+from PIL import Image
+
+#Paper: CGANS WITH PROJECTION DISCRIMINATOR
+#Paper: Residual Dense Network for Image Super-Resolution
+
+BATCH_SIZE = 16
+MAX_ITERATION = 600000
+TRAINING_SET_PATH = "./TrainingSet/"
+LAMBDA = 100
+SAVE_MODEL = "./save_para/"
+RESULTS = "./results/"
 
 
-BATCH_SIZE = 50
-LEARNING_RATE = 1e-3
-WEIGHT_DECAY = 1e-3
-EPSILON = 1e-10
 
 def train():
-    lr = tf.placeholder("float")
-    inputs = tf.placeholder("float", [None, 64, 64, 1])
-    labels = tf.placeholder("float", [None, 4])
-    is_training = tf.placeholder("bool")
-    prediction = network(inputs, is_training)
-    correct_prediction = tf.equal(tf.argmax(prediction, 1), tf.argmax(labels, 1))
-    accurancy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
-    loss = -tf.reduce_sum(labels * tf.log(prediction + EPSILON)) + tf.add_n(
-        [tf.nn.l2_loss(var) for var in tf.trainable_variables()]) * WEIGHT_DECAY
-    Opt = tf.train.AdamOptimizer(lr).minimize(loss)
+    RDN = Generator("RDN")
+    D = Discriminator("discriminator")
+    HR = tf.placeholder(tf.float32, [None, 96, 96, 3])
+    LR = tf.placeholder(tf.float32, [None, 24, 24, 3])
+    SR = RDN(LR)
+    fake_logits = D(SR, LR)
+    real_logits = D(HR, LR)
+    D_loss, G_loss = Hinge_Loss(fake_logits, real_logits)
+    G_loss += MSE(SR, HR) * LAMBDA
+    itr = tf.Variable(MAX_ITERATION, dtype=tf.int32, trainable=False)
+    learning_rate = tf.Variable(2e-4, trainable=False)
+    op_sub = tf.assign_sub(itr, 1)
+    D_opt = tf.train.AdamOptimizer(learning_rate, beta1=0., beta2=0.9).minimize(D_loss, var_list=D.var_list())
+    with tf.control_dependencies([op_sub]):
+        G_opt = tf.train.AdamOptimizer(learning_rate, beta1=0., beta2=0.9).minimize(G_loss, var_list=RDN.var_list())
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
+    lr0 = 2e-4
+    saver = tf.train.Saver()
+    while True:
+        HR_data, LR_data = read_crop_data(TRAINING_SET_PATH, BATCH_SIZE, [96, 96, 3], 4)
+        sess.run(D_opt, feed_dict={HR: HR_data, LR: LR_data})
+        [_, iteration] = sess.run([G_opt, itr], feed_dict={HR: HR_data, LR: LR_data})
+        iteration_ = iteration*1.0
+        iteration = MAX_ITERATION - iteration
+        if iteration > MAX_ITERATION // 2:
+            learning_rate_ = lr0 * (iteration_ * 2 / MAX_ITERATION)
+            sess.run(tf.assign(learning_rate, learning_rate_))
+        if iteration % 10 == 0:
+            [D_LOSS, G_LOSS, LEARNING_RATE, img] = sess.run([D_loss, G_loss, learning_rate, SR], feed_dict={HR: HR_data, LR: LR_data})
+            output = (np.concatenate((HR_data[0, :, :, :], img[0, :, :, :]), axis=1) + 1) * 127.5
+            Image.fromarray(np.uint8(output)).save(RESULTS+str(iteration)+".jpg")
+            print("Iteration: %d, D_loss: %f, G_loss: %f, LearningRate: %f"%(iteration, D_LOSS, G_LOSS, LEARNING_RATE))
+        if iteration % 500 == 0:
+            saver.save(sess, SAVE_MODEL + "model.ckpt")
 
-    data = sio.loadmat("./CV_1_801.mat")
-    traindata = np.reshape(data["train"], [2400, 64, 64, 1]) / 127.5 - 1.0
-    trainlabel = data["train_label"]
-    testdata = np.reshape(data["test"], [800, 64, 64, 1]) / 127.5 - 1.0
-    testlabel = data["test_label"]
-    max_test_acc = 0
-    loss_list = []
-    acc_list = []
-    for i in range(11000):
-        batch_data, label_data = random_read_batch(traindata, trainlabel, BATCH_SIZE)
-        sess.run(Opt, feed_dict={inputs: batch_data, labels: label_data, is_training: True, lr: LEARNING_RATE})
-        if i % 20 == 0:
-            [LOSS, TRAIN_ACCURACY] = sess.run([loss, accurancy], feed_dict={inputs: batch_data, labels: label_data, is_training: False, lr: LEARNING_RATE})
-            loss_list.append(LOSS)
-            TEST_ACCURACY = 0
-            for j in range(16):
-                TEST_ACCURACY += sess.run(accurancy, feed_dict={inputs: testdata[j*50:j*50+50], labels: testlabel[j*50:j*50+50], is_training: False, lr: LEARNING_RATE})
-            TEST_ACCURACY /= 16
-            acc_list.append(TEST_ACCURACY)
-            if TEST_ACCURACY > max_test_acc:
-                max_test_acc = TEST_ACCURACY
-            print("Step: %d, loss: %4g, training accuracy: %4g, testing accuracy: %4g, max testing accuracy: %4g"%(i, LOSS, TRAIN_ACCURACY, TEST_ACCURACY, max_test_acc))
-        if i % 1000 == 0:
-            np.savetxt("loss_list.txt", loss_list)
-            np.savetxt("acc_list.txt", acc_list)
-
-
-if __name__ == "__main__":
-    train()
+train()

@@ -195,7 +195,7 @@ if __name__ == "__main__":
 #   with open("downloaded_files/wesselb/readme_example8_gp-rnn.py", "r", encoding="utf-8") as file:
 #   with open("downloaded_files/ChenRocks/training.py", "r", encoding="utf-8") as file:
 #   with open("downloaded_files/streamlit/st_magic.py", "r", encoding="utf-8") as file:
-    with open("downloaded_files/yongxuUSTC/tmp01f.py", "r", encoding="utf-8") as file:
+    with open("downloaded_files/pyro-ppl/integrate.py", "r", encoding="utf-8") as file:
         python_code = file.read()
 
-    annotate_by_mapping(model, python_code, "examples/run_J", "tmp01f.py")
+    annotate_by_mapping(model, python_code, "examples/run_C", "integrate.py")

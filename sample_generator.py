@@ -1,9 +1,8 @@
 import os
 from filter_sample_scripts import filter_files_based_on_conditions
-from docstring_generator_functionized import annotate_script
 from docstring_generator_functionized import annotate_by_mapping
-
-
+from docstring_generator_intell_chunked import annotate_by_mapping as annotate_by_mapping_intell_chunked
+from docstring_generator_v2 import annotate_by_mapping as annotate_by_mapping_v2
 
 def annotate_random_scripts(
         save_directory: str,
@@ -79,7 +78,7 @@ def annotate_random_scripts(
 
 
         #annotated_content = annotate_script(model, script_content)
-        annotated_content = annotate_by_mapping(model, script_content, save_directory, os.path.basename(script_path))
+        annotated_content = annotate_by_mapping_v2(model, script_content, save_directory, os.path.basename(script_path))
 
 
         print(f"Annotated script saved to {output_path}")
