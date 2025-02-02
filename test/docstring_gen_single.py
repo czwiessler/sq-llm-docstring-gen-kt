@@ -2,6 +2,7 @@ import re
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
+import shutil
 
 
 def import_file(file_path):
@@ -37,10 +38,8 @@ def group_class_methods(definitions):
     return class_groups
 
 
-def extract_code_blocks(lines, definitions):
-    class_groups = group_class_methods(definitions)
+def extract_code_blocks(lines, definitions, class_groups):
     blocks = {}
-    # TODO: Add functionality to include headers of same class in the same block
 
     for i, (idx, header, indent) in enumerate(definitions):
         start_idx = idx
@@ -52,6 +51,15 @@ def extract_code_blocks(lines, definitions):
 
         block_lines = []
         inside_block = False
+
+        # Finde heraus, ob das aktuelle `header` zu einer Klasse oder einer Methode gehört
+        class_header = None
+        for class_name, methods in class_groups.items():
+            if header in methods:
+                class_header = class_name
+                break  # Stoppe, sobald die Klasse gefunden wurde
+
+
 
         for j in range(start_idx, end_idx):
             line = lines[j]
@@ -66,7 +74,12 @@ def extract_code_blocks(lines, definitions):
                     block_lines.append(line)
                 else:
                     break
-
+        # Falls die Methode zu einer Klasse gehört, füge die Klassendefinition + alle anderen Methoden-Header ein
+        if class_header:
+            block_lines.append('FYI: Other headers of this class:\n')
+            for method in class_groups[class_header]:
+                if method != header:  # Vermeide die aktuell betrachtete Methode/Klasse
+                    block_lines.append(method + '\n')
         blocks[header] = ''.join(block_lines)
 
     return blocks
@@ -98,7 +111,7 @@ def generate_docstrings_for_chunk(client, model, filename, chunk_code, system_pr
     return chunk_generated_cleaned
 
 
-def get_docstrings(output_dir):
+def get_docstrings(output_dir, docstring_dir):
     load_dotenv()
     api_key = os.environ.get("OPENAI_API_KEY", "keyhere")
     client = OpenAI(api_key=api_key)
@@ -106,7 +119,6 @@ def get_docstrings(output_dir):
 
     model = "gpt-4o"
 
-    docstring_dir = "docstrings"
     os.makedirs(docstring_dir, exist_ok=True)
 
     for filename in os.listdir(output_dir):
@@ -116,6 +128,7 @@ def get_docstrings(output_dir):
                 code = file.read()
 
             function_user_prompt = """
+                IMPORTANT: Give me just the docstring and do not use triple quotes or ``` or ''' in the response.
                 Generate a comprehensive Python docstring for the following function. 
                 The docstring should include:
 
@@ -126,7 +139,7 @@ def get_docstrings(output_dir):
                 
                 Formatting rules:  
                 - Use exactly 1 tab (4 spaces) for indentation.  
-                - Do not indent sections like `Args`, `Returns`, or `Raises` etc.
+                - Ensure that `Args`, `Returns`, and `Raises` are NEVER indented.  
                 
                 Example for a function style:
                 def add(a: int, b: int) -> int:
@@ -142,10 +155,10 @@ def get_docstrings(output_dir):
                     \"""
 
                 IMPORTANT: 
-                - Provide only the docstring and do not use triple quotes or ` or ' in the response. 
                 - Do not include the function definition or Python at the beginning.
                 """
             class_user_prompt = """
+                IMPORTANT: Give me just the docstring and do not use triple quotes or ``` or ''' in the response.
                 Generate a comprehensive Python docstring for the following class. 
                 The docstring should include:
 
@@ -177,7 +190,6 @@ def get_docstrings(output_dir):
                     \"""
 
                 IMPORTANT: 
-                - Provide only the docstring and do not use triple quotes or ` or ' in the response. 
                 - Do not include the class definition or Python at the beginning.
                 """
             print("Processing ", filename)
@@ -190,7 +202,7 @@ def get_docstrings(output_dir):
                 continue
 
             # if the docstring contains triple quotes, try again 2 more times
-            if '"""' in docstring or "'''" in docstring or '```' in docstring:
+            if '"""' in docstring or "'''" in docstring or '```' in docstring or "    Args:" in docstring:
                 stronger_function_user_prompt = """
                     IMPORTANT: Give me just the docstring and do not use triple quotes in the response.
                     Generate a comprehensive Python docstring for the following function. 
@@ -203,7 +215,7 @@ def get_docstrings(output_dir):
                 
                     Formatting rules:  
                     - Use exactly 1 tab (4 spaces) for indentation.  
-                    - Do not indent sections like `Args`, `Returns`, or `Raises` etc.
+                    - Ensure that `Args`, `Returns`, and `Raises` are NEVER indented.  
                     
                     Example for a function style:
                     def add(a: int, b: int) -> int:
@@ -263,7 +275,7 @@ def get_docstrings(output_dir):
                     docstring = generate_docstrings_for_chunk(client, model, filename, code, system_prompt, stronger_function_user_prompt)
                 elif "class" in filename:
                     docstring = generate_docstrings_for_chunk(client, model, filename, code, system_prompt, stronger_class_user_prompt)
-            if '"""' in docstring or "'''" in docstring or '```' in docstring:
+            if '"""' in docstring or "'''" in docstring or '```' in docstring or  "    Args:" in docstring:
                 strongest_function_user_prompt = """
                     MOST IMPORTANT: Give me just the docstring and do not use triple quotes in the response.
                     DO NOT USE TRIPLE QUOTES IN THE RESPONSE.
@@ -277,7 +289,7 @@ def get_docstrings(output_dir):
                     
                     Formatting rules:  
                     - Use exactly 1 tab (4 spaces) for indentation.  
-                    - Do not indent sections like `Args`, `Returns`, or `Raises` etc.
+                    - Ensure that `Args`, `Returns`, and `Raises` are NEVER indented.  
                     
                     Example for a function style:
                     def add(a: int, b: int) -> int:
@@ -340,16 +352,46 @@ def get_docstrings(output_dir):
                 elif "class" in filename:
                     docstring = generate_docstrings_for_chunk(client, model, filename, code, system_prompt,
                                                               strongest_class_user_prompt)
-            # if there is still a triple quote, print the filename
-            if '"""' in docstring or "'''" in docstring or '```' in docstring:
-                print("Triple quote in ", filename, "Deleting docstring...")
-                # clear the docstring
-                docstring = ""
+                # if there is still a triple quote, print the filename
+                if '"""' in docstring or "'''" in docstring or '```' or  "    Args:" in docstring:
+                    print("Triple quote or wrong indentations in ", filename, "Deleting docstring...")
+                    # clear the docstring
+                    docstring = ""
 
             # Speichere den Docstring als reine Textdatei
             docstring_filename = os.path.splitext(filename)[0] + ".txt"
             with open(os.path.join(docstring_dir, docstring_filename), 'w', encoding='utf-8') as doc_file:
                 doc_file.write(docstring)
+
+
+def clean_docstrings(docstring_dir):
+    for filename in os.listdir(docstring_dir):
+        if filename.endswith(".txt"):
+            file_path = os.path.join(docstring_dir, filename)
+            with open(file_path, 'r', encoding='utf-8') as file:
+                docstring = file.read()
+
+            # Entferne Blöcke, die mit Args:, Returns: oder Raises: beginnen und None enthalten
+            cleaned_docstring = re.sub(
+                r'\n\s*(Args|Returns|Raises):\s*None(?:\n\s*:[^\n]*)*\n?',
+                '\n',
+                docstring,
+                flags=re.MULTILINE
+            )
+
+            # Falls nach "Args:" nichts mehr Relevantes steht, die leere Zeile danach erhalten
+            cleaned_docstring = re.sub(
+                r'\n\s*(Args|Returns|Raises):\s*\n\s*\n?',
+                '\n',
+                cleaned_docstring,
+                flags=re.MULTILINE
+            )
+
+            # Speichere die bereinigte Version mit korrektem Zeilenabstand
+            with open(file_path, 'w', encoding='utf-8') as file:
+                file.write(cleaned_docstring.strip() + '\n')  # Abschließendes Newline für Konsistenz
+
+
 
 def remove_docstrings_from_original_code(code: str) -> str:
     """
@@ -368,32 +410,18 @@ def remove_docstrings_from_original_code(code: str) -> str:
 
     return cleaned_code
 
-
-def find_best_matching_docstring(definition, docstring_dir):
-    """
-    Findet den am besten passenden Docstring basierend auf dem Dateinamen.
-    """
-    best_match = None
-    best_score = 0
-
-    for docstring_name in os.listdir(docstring_dir):
-        docstring_name_clean = "_".join(docstring_name.split("_")[1:]).rsplit(".", 1)[0]
-
-        score = sum(part in definition for part in docstring_name_clean.split("_"))
-        if score > best_score:
-            best_score = score
-            best_match = docstring_name
-
-    return best_match
-
 def insert_docstrings(original_code, docstring_dir):
     """
-    Iteriert durch den Originalcode und fügt passende Docstrings aus `docstring_dir` ein.
+    Iteriert durch den Originalcode und fügt Docstrings aus `docstring_dir` in der Reihenfolge der Dateien ein.
     """
     lines = original_code.splitlines(True)
 
+    # Lade alle Docstring-Dateien in sortierter Reihenfolge
+    docstring_files = sorted(os.listdir(docstring_dir), key=lambda x: int(x.split("_")[0]))
+    docstring_index = 0  # Verfolgt, welcher Docstring als nächstes eingefügt wird
+
     for i, line in enumerate(lines):
-        if line.strip().startswith(("def ", "async def ", "class ")):
+        if line.strip().startswith(("def ", "async def ", "class ")) and docstring_index < len(docstring_files):
             definition = line.strip()
             j = i
 
@@ -401,42 +429,60 @@ def insert_docstrings(original_code, docstring_dir):
                 j += 1
                 definition += lines[j].strip()
 
-            best_match = find_best_matching_docstring(definition, docstring_dir)
+            # Lade den nächsten Docstring (in der gespeicherten Reihenfolge)
+            docstring_path = os.path.join(docstring_dir, docstring_files[docstring_index])
+            with open(docstring_path, "r") as file:
+                docstring_content = file.read()
+            docstring_index += 1  # Zum nächsten Docstring gehen
 
-            if best_match:
-                with open(os.path.join(docstring_dir, best_match), "r") as file:
-                    docstring_content = file.read()
+            # Berechne die Einrückung für den Docstring
+            indent = len(line) - len(line.lstrip())
+            docstring_indent = " " * (indent + 4)
 
-                indent = len(line) - len(line.lstrip())
-                docstring_indent = " " * (indent + 4)
+            # Formatiere den Docstring mit passender Einrückung
+            formatted_docstring = (
+                f'{docstring_indent}"""\n'
+                + "\n".join(docstring_indent + l for l in docstring_content.splitlines())
+                + f'\n{docstring_indent}"""\n'
+            )
 
-                formatted_docstring = (
-                        f'{docstring_indent}"""\n'
-                        + "\n".join(docstring_indent + l for l in docstring_content.splitlines())
-                        + f'\n{docstring_indent}"""\n'
-                )
-
-                lines[j + 1:j + 1] = formatted_docstring.splitlines(True)
+            # Füge den Docstring nach der Funktions-/Klassendefinition ein
+            lines[j + 1:j + 1] = formatted_docstring.splitlines(True)
 
     return "".join(lines)
 
 
+def delete_docstring_and_blocks_dir(docstring_dir, output_dir):
+    for dir_path in [docstring_dir, output_dir]:
+        if os.path.exists(dir_path):
+            shutil.rmtree(dir_path)
+            print(f"Deleted directory: {dir_path}")
+        else:
+            print(f"Directory does not exist: {dir_path}")
+
+
 if __name__ == "__main__":
-    #file_path = "../downloaded_files/pyro-ppl/integrate.py"
+    file_path = "../downloaded_files/pyro-ppl/integrate.py"
     #file_path = "extract.py"
-    file_path = "../examples/run_C/test_streaming.py"
+    #file_path = "../examples/run_C/test_streaming_original.py"
     output_dir = "extracted_blocks"
+    docstring_dir = "docstrings"
 
     file_lines = import_file(file_path)
     code = "".join(file_lines)
     definitions = extract_definitions_from_code(code)
-    blocks = extract_code_blocks(file_lines, definitions)
+    class_groups = group_class_methods(definitions)
+    blocks = extract_code_blocks(file_lines, definitions, class_groups)
     save_blocks(blocks, output_dir)
-    get_docstrings(output_dir)
+    get_docstrings(output_dir, docstring_dir)
+
+    #clean_docstrings(docstring_dir)
 
     clean_code = remove_docstrings_from_original_code(code)
 
-    commented_code = insert_docstrings(clean_code, "docstrings")
+    commented_code = insert_docstrings(clean_code, docstring_dir)
+
+    delete_docstring_and_blocks_dir(docstring_dir, output_dir)
 
     with open("commented_code.py", "w", encoding="utf-8") as output_file:
         output_file.write(commented_code)
