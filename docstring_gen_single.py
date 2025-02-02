@@ -3,7 +3,7 @@ import os
 from openai import OpenAI
 from dotenv import load_dotenv
 import shutil
-
+import sys
 
 def import_file(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:
@@ -121,6 +121,12 @@ def get_docstrings(output_dir, docstring_dir):
 
     os.makedirs(docstring_dir, exist_ok=True)
 
+    py_files = [f for f in os.listdir(output_dir) if f.endswith(".py")]
+    total_files = len(py_files)
+    processed_files = 0
+
+    print(f"Progress: 0% completed", end="\r")
+
     for filename in os.listdir(output_dir):
         if filename.endswith(".py"):
             file_path = os.path.join(output_dir, filename)
@@ -192,7 +198,7 @@ def get_docstrings(output_dir, docstring_dir):
                 IMPORTANT: 
                 - Do not include the class definition or Python at the beginning.
                 """
-            print("Processing ", filename)
+            #print("Processing ", filename)
             if "def" in filename:
                 docstring = generate_docstrings_for_chunk(client, model, filename, code, system_prompt, function_user_prompt)
             elif "class" in filename:
@@ -270,7 +276,7 @@ def get_docstrings(output_dir, docstring_dir):
                     - Provide only the docstring and do not use triple quotes or ` or ' in the response. 
                     - Do not include the class definition or Python at the beginning.
                     """
-                print("Retrying 1 for ", filename)
+                #print("Retrying 1 for ", filename)
                 if "def" in filename:
                     docstring = generate_docstrings_for_chunk(client, model, filename, code, system_prompt, stronger_function_user_prompt)
                 elif "class" in filename:
@@ -345,7 +351,7 @@ def get_docstrings(output_dir, docstring_dir):
                     - Provide only the docstring and do not use triple quotes or ` or ' in the response. 
                     - Do not include the class definition or Python at the beginning.
                     """
-                print("Retrying 2 for ", filename)
+                #print("Retrying 2 for ", filename)
                 if "def" in filename:
                     docstring = generate_docstrings_for_chunk(client, model, filename, code, system_prompt,
                                                               strongest_function_user_prompt)
@@ -354,7 +360,7 @@ def get_docstrings(output_dir, docstring_dir):
                                                               strongest_class_user_prompt)
                 # if there is still a triple quote, print the filename
                 if '"""' in docstring or "'''" in docstring or '```' or  "    Args:" in docstring:
-                    print("Triple quote or wrong indentations in ", filename, "Deleting docstring...")
+                    #print("Triple quote or wrong indentations in ", filename, "Deleting docstring...")
                     # clear the docstring
                     docstring = ""
 
@@ -362,6 +368,13 @@ def get_docstrings(output_dir, docstring_dir):
             docstring_filename = os.path.splitext(filename)[0] + ".txt"
             with open(os.path.join(docstring_dir, docstring_filename), 'w', encoding='utf-8') as doc_file:
                 doc_file.write(docstring)
+
+        # Fortschritt aktualisieren
+        processed_files += 1
+        progress_percentage = (processed_files / total_files) * 100
+        print(f"\rProgress: {progress_percentage:.0f}% completed",
+              end="\r")
+    print()
 
 
 def clean_docstrings(docstring_dir):
@@ -392,7 +405,6 @@ def clean_docstrings(docstring_dir):
                 file.write(cleaned_docstring.strip() + '\n')  # Abschließendes Newline für Konsistenz
 
 
-
 def remove_docstrings_from_original_code(code: str) -> str:
     """
     Entfernt alle Docstrings aus dem Code, fügt aber (optional) den ursprünglichen
@@ -409,6 +421,7 @@ def remove_docstrings_from_original_code(code: str) -> str:
         cleaned_code = module_docstring + '\n' + cleaned_code.lstrip()
 
     return cleaned_code
+
 
 def insert_docstrings(original_code, docstring_dir):
     """
@@ -452,39 +465,46 @@ def insert_docstrings(original_code, docstring_dir):
     return "".join(lines)
 
 
-def delete_docstring_and_blocks_dir(docstring_dir, output_dir):
-    for dir_path in [docstring_dir, output_dir]:
-        if os.path.exists(dir_path):
-            shutil.rmtree(dir_path)
-            print(f"Deleted directory: {dir_path}")
-        else:
-            print(f"Directory does not exist: {dir_path}")
+def main():
+    if len(sys.argv) != 2:
+        print("Usage: python docstring_gen_single.py <path_to_python_file>")
+        sys.exit(1)
 
+    file_path = sys.argv[1]
+    if not os.path.isfile(file_path):
+        print(f"Error: File '{file_path}' does not exist.")
+        sys.exit(1)
 
-if __name__ == "__main__":
-    file_path = "../downloaded_files/pyro-ppl/integrate.py"
-    #file_path = "extract.py"
-    #file_path = "../examples/run_C/test_streaming_original.py"
     output_dir = "extracted_blocks"
     docstring_dir = "docstrings"
+    output_file_path = file_path.replace(".py", "_annotated.py")
 
+    # Import file content
     file_lines = import_file(file_path)
     code = "".join(file_lines)
+
+    # Extract code definitions
     definitions = extract_definitions_from_code(code)
     class_groups = group_class_methods(definitions)
     blocks = extract_code_blocks(file_lines, definitions, class_groups)
     save_blocks(blocks, output_dir)
+
+    # Generate docstrings
     get_docstrings(output_dir, docstring_dir)
 
-    #clean_docstrings(docstring_dir)
-
+    # Remove old docstrings and insert new ones
     clean_code = remove_docstrings_from_original_code(code)
-
     commented_code = insert_docstrings(clean_code, docstring_dir)
 
-    delete_docstring_and_blocks_dir(docstring_dir, output_dir)
-
-    with open("commented_code.py", "w", encoding="utf-8") as output_file:
+    # Save annotated file
+    with open(output_file_path, "w", encoding="utf-8") as output_file:
         output_file.write(commented_code)
 
-    print(f"Extracted {len(blocks)} blocks to '{output_dir}' and generated docstrings in 'docstrings'.")
+    # Cleanup
+    shutil.rmtree(docstring_dir, ignore_errors=True)
+    shutil.rmtree(output_dir, ignore_errors=True)
+
+    print(f"Annotated file saved as: {output_file_path}")
+
+if __name__ == "__main__":
+    main()
