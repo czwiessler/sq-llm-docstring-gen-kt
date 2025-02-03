@@ -98,7 +98,7 @@ def remove_code_fences(text):
 
 
 def generate_docstrings_for_chunk(client, model, filename, chunk_code, system_prompt, user_prompt):
-    full_prompt = user_prompt + chunk_code
+    full_prompt = filename + user_prompt + chunk_code
     response = client.chat.completions.create(
         messages=[
             {"role": "system", "content": system_prompt},
@@ -139,7 +139,7 @@ def get_docstrings(output_dir, docstring_dir):
                 The docstring should include:
 
                 1. A clear and concise description of the purpose.
-                2. A detailed explanation of all parameters with their data types, looking only inside the parentheses `()` right after the method name, ignoring "self".
+                2. A detailed explanation of caller method's parameters with their data types, excluding "self" and callee methods.
                 3. A description of the return value(s) with their data types.
                 4. Information about possible exceptions (errors) the function may raise.
                 
@@ -162,6 +162,8 @@ def get_docstrings(output_dir, docstring_dir):
 
                 IMPORTANT: 
                 - Do not include the function definition or Python at the beginning.
+                
+                This is the caller method: 
                 """
             class_user_prompt = """
                 IMPORTANT: Give me just the docstring and do not use triple quotes or ``` or ''' in the response.
@@ -215,7 +217,7 @@ def get_docstrings(output_dir, docstring_dir):
                     The docstring should include:
 
                     1. A clear and concise description of the purpose.
-                    2. A detailed explanation of all parameters with their data types, looking only inside the parentheses `()` right after the method name, ignoring "self".
+                    2. A detailed explanation of caller method's parameters with their data types, excluding "self" and callee methods.
                     3. A description of the return value(s) with their data types.
                     4. Information about possible exceptions (errors) the function may raise.
                 
@@ -239,6 +241,8 @@ def get_docstrings(output_dir, docstring_dir):
                     IMPORTANT: 
                     - Provide only the docstring and do not use triple quotes or ` or ' in the response. 
                     - Do not include the function definition or Python at the beginning.
+                                    
+                    This is the caller method: 
                     """
                 stronger_class_user_prompt = """
                     IMPORTANT: Give me just the docstring and do not use triple quotes in the response.
@@ -289,7 +293,7 @@ def get_docstrings(output_dir, docstring_dir):
                     The docstring should include:
     
                     1. A clear and concise description of the purpose.
-                    2. A detailed explanation of all parameters with their data types, looking only inside the parentheses `()` right after the method name, ignoring "self".
+                    2. A detailed explanation of caller method's parameters with their data types, excluding "self" and callee methods.
                     3. A description of the return value(s) with their data types.
                     4. Information about possible exceptions (errors) the function may raise.
                     
@@ -313,6 +317,8 @@ def get_docstrings(output_dir, docstring_dir):
                     IMPORTANT: 
                     - Provide only the docstring and do not use triple quotes or ` or ' in the response. 
                     - Do not include the function definition or Python at the beginning.
+                                                        
+                    This is the caller method: 
                     """
                 strongest_class_user_prompt = """
                     MOST IMPORTANT: Give me just the docstring and do not use triple quotes in the response.
