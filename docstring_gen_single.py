@@ -139,7 +139,7 @@ def get_docstrings(output_dir, docstring_dir):
                 The docstring should include:
 
                 1. A clear and concise description of the purpose.
-                2. A detailed explanation of all parameters with their data types.
+                2. A detailed explanation of all parameters with their data types, looking only inside the parentheses `()` right after the method name, ignoring "self".
                 3. A description of the return value(s) with their data types.
                 4. Information about possible exceptions (errors) the function may raise.
                 
@@ -215,7 +215,7 @@ def get_docstrings(output_dir, docstring_dir):
                     The docstring should include:
 
                     1. A clear and concise description of the purpose.
-                    2. A detailed explanation of all parameters with their data types.
+                    2. A detailed explanation of all parameters with their data types, looking only inside the parentheses `()` right after the method name, ignoring "self".
                     3. A description of the return value(s) with their data types.
                     4. Information about possible exceptions (errors) the function may raise.
                 
@@ -289,7 +289,7 @@ def get_docstrings(output_dir, docstring_dir):
                     The docstring should include:
     
                     1. A clear and concise description of the purpose.
-                    2. A detailed explanation of all parameters with their data types.
+                    2. A detailed explanation of all parameters with their data types, looking only inside the parentheses `()` right after the method name, ignoring "self".
                     3. A description of the return value(s) with their data types.
                     4. Information about possible exceptions (errors) the function may raise.
                     
