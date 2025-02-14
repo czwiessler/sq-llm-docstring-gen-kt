@@ -3,6 +3,9 @@
 ## Overview
 
 **DockstringGenSimple** is a lightweight tool designed to automatically generate docstrings for Python files. 
+
+The correspondent **PROJECT REPORT** is to be found in the root directory.
+
 ## Installation
 
 To install the necessary dependencies, ensure you have Python installed and then run:
