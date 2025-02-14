@@ -1,41 +1,49 @@
-## Begleitmaterial für Projekt 8: "Automated Docstring Generation for Python Scripts"
+# README: **DockstringGenSimple**
 
-### Beschreibung
-Dieses Repository stellt optionales Begleitmaterial für das Projekt zur Verfügung. Es kann, muss aber nicht für das Projekt verwendet werden. Enthalten sind:
-1. Ordner `downloaded_files`: 25563 Python Skripte aus öffentlich zugänglichen Github-Repositories zum Thema Machine Learning. Die jeweiligen Unterordner, in denen die Skripte liegen, bilden die Namen des entsprechenden Github-Repositories ab.
-2. Skript `script_metrics.xlsx`: Diverse Metriken zu den Skripten (siehe unten).
-3. Skript `filter_sample_metrics.py`: Python Tool zum Filtern der ML-Skripte (siehe unten).
+## Overview
 
-### Erläuterung zu `script_metrics.xlsx`
-- `file`: Dateiname
-- `lines`: Anzahl Zeilen (inkl. Leerzeilen, Kommentare, etc.)
-- `classes`: Anzahl der Klassen
-- `functions`: Anzahl Funktionen
-- `non_class_function_lines`: Anzahl der Zeilen die nicht zu einer Funktion gehören
-- `nested_lines`: Anzahl der Zeilen, die eingerückt sind (also 1 oder mehr Leerzeichen zu Beginn der Zeile haben, einschließlich Codezeilen in Funktionen)
-- `non_nested_lines`: Anzahl der Zeilen, die nicht eingerückt sind (also keine Leerzeichen zu Beginn der Zeile haben)
-- `import_statements`: Anzahl Import-Statements
-- `loops`: Summe der While- und For-Loops
-- `if_statements`: Anzahl der If-Statements
-- `variables`: Summe der zugewiesenen Variablen
-- `files_read`: Summe der Stellen, an denen eine externe Date eingelesen wird (berücksichtigt Funktionsaufrufe mit dem Muster `.open()` und `.read()`
-- `functions_with_docstring`: Anzahl Funktionen, die einen Docstring enthalten
-- `single_line_comments`: Summe der Zeilenkommentare
-- `average_line_length`: Durchschnittliche Zeilenlänge
-- `maximum_line_length`: Maximale Zeilenlänge
-- `average_function_length`: Durchschnittliche Funktionslänge
-- `max_function_length`: Maximale Funktionslänge
+**DockstringGenSimple** is a lightweight tool designed to automatically generate docstrings for Python files. 
+## Installation
 
-### Tool: `filter_sample_metrics.py`
-Mit dem Tool können die oben genannten ML Skripte gefiltert werden. Das Tool liest die Datei `script_metrics.xlsx` ein und filtert diejenigen Zeilen, die den definierten Conditions entsprechen. Diese gefilterten Zeilen werden dann standardmäßig in `filtered_files.xlsx` aus gegeben.
+To install the necessary dependencies, ensure you have Python installed and then run:
 
-Die Conditions werden als Lambda Function in einem Dictionary definiert. Als Key wird der Spaltenname in `script_metrics.xlsx` angegeben, als Value wird die Lambda Function eingetragen. Beispiele:
-
-```python
-conditions  = {
-	"lines": lambda  x: 30  <=  x  <=  300, # between 30 and 300 lines
-	"functions": lambda  x: x  >=  3, # at least three functions
-	"functions_with_docstring": lambda  x: x  >=  3, # at least three functions with a docstring
-	...
-}
+```bash
+pip install -r requirements.txt
 ```
+
+## Usage
+
+To generate docstrings for a given Python file, simply execute the following command:
+
+```bash
+py docstring_gen_single.py <path_to_python_file>
+```
+
+Upon execution, the tool processes the specified Python script and creates an annotated version in the same directory. The new file is saved under the same name with the suffix `_annotated.py`. 
+
+### Example
+
+If you have a script named `example.py`, running:
+
+```bash
+python docstring_gen_single.py example.py
+```
+
+will generate an annotated version:
+
+```
+example_annotated.py
+```
+
+## Dependencies
+
+All required dependencies are listed in `requirements.txt`. Install them using:
+
+```bash
+pip install -r requirements.txt
+```
+
+## License
+
+This project is released under the [MIT License](LICENSE). 
+
